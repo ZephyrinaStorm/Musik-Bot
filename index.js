@@ -1,12 +1,42 @@
 require('dotenv').config();
-const {Client,GatewayIntentBits,REST,Routes,PermissionFlagsBits}=require('discord.js');
+const {Client,GatewayIntentBits,REST,Routes,EmbedBuilder,ActionRowBuilder,ButtonBuilder,ButtonStyle,MessageFlags}=require('discord.js');
 const {definitions,CORE,FILTERS,VOICE}=require('./commands');
 const {setupMusic}=require('./music');
 const {startApi}=require('./api');
 for(const key of ['DISCORD_TOKEN','DISCORD_CLIENT_ID','LAVALINK_HOST','LAVALINK_PASSWORD'])if(!process.env[key]){console.error(`Missing ${key}. See .env.example`);process.exit(1)}
 const client=new Client({intents:[GatewayIntentBits.Guilds,GatewayIntentBits.GuildVoiceStates]});
 const manager=setupMusic(client);
-const reply=(i,message)=>i.reply({content:String(message).slice(0,1900),ephemeral:true});
+const COLOR=0x8b5cf6;
+const clean=(value)=>String(value).replace(/@everyone|@here/g,'[mention]').slice(0,3900);
+function makeEmbed(title,description,kind='info'){
+ const colors={info:COLOR,success:0x22c55e,error:0xef4444};
+ return new EmbedBuilder().setColor(colors[kind]||COLOR).setTitle(`🎵 ${title}`).setDescription(clean(description)||'Done.').setFooter({text:'Musik • Lavalink Music'}).setTimestamp();
+}
+function reply(i,message){
+ const value=String(message);
+ const error=value.startsWith('❌');
+ return i.reply({embeds:[makeEmbed(error?'Something went wrong':'Musik',value,error?'error':'success')],flags:MessageFlags.Ephemeral});
+}
+const HELP_PAGES=[
+ {title:'Playback',names:['play','search','pause','resume','skip','stop','disconnect','join','leave','replay','previous','seek','jump','nowplaying','autoplay']},
+ {title:'Queue & controls',names:['queue','volume','shuffle','loop','clear','remove','move']},
+ {title:'Audio filters',names:['bassboost','nightcore','vaporwave',...FILTERS]},
+ {title:'Information',names:['help','ping','invite','status','lyrics']}
+];
+// Split the 70 EQ presets into readable pages, keeping every registered command visible.
+const HELP_GROUPS=[HELP_PAGES[0],HELP_PAGES[1],{title:'Effects',names:['bassboost','nightcore','vaporwave']},
+ ...Array.from({length:7},(_,idx)=>({title:`Equalizer presets ${idx*10+1}–${idx*10+10}`,names:FILTERS.slice(idx*10,idx*10+10)})),HELP_PAGES[3]];
+function helpPayload(page=0){
+ const index=Math.max(0,Math.min(HELP_GROUPS.length-1,page));
+ const group=HELP_GROUPS[index];
+ const description=group.names.map(n=>`• \`/${n}\``).join('\n');
+ const embed=makeEmbed(`Help • ${group.title}`,`${description}\n\n**${definitions().length} commands total** • Page ${index+1}/${HELP_GROUPS.length}`);
+ const row=new ActionRowBuilder().addComponents(
+  new ButtonBuilder().setCustomId(`musik_help_${index-1}`).setLabel('Previous').setStyle(ButtonStyle.Secondary).setDisabled(index===0),
+  new ButtonBuilder().setCustomId(`musik_help_${index+1}`).setLabel('Next').setStyle(ButtonStyle.Primary).setDisabled(index===HELP_GROUPS.length-1)
+ );
+ return {embeds:[embed],components:[row]};
+}
 function currentPlayer(i){return manager.getPlayer(i.guildId)}
 function requireVoice(i){
  const channel=i.member?.voice?.channel;
@@ -20,7 +50,7 @@ const scales={soft:.15,low:.3,medium:.45,high:.6,strong:.75,extreme:.9,max:1};
 async function run(i){
  const name=i.commandName;
  if(name==='ping')return reply(i,`Pong! ${client.ws.ping}ms`);
- if(name==='help')return reply(i,`Musik has ${definitions().length} slash commands. Try /play, /queue, /skip, /volume, /loop and /eq-bass-medium.`);
+ if(name==='help')return i.reply({...helpPayload(0),flags:MessageFlags.Ephemeral});
  if(name==='invite')return reply(i,`https://discord.com/oauth2/authorize?client_id=${process.env.DISCORD_CLIENT_ID}&scope=bot%20applications.commands&permissions=3148800`);
  if(name==='status')return reply(i,`Servers: ${client.guilds.cache.size}; Lavalink nodes: ${manager.nodeManager.nodes.size}`);
  if(!i.guildId)throw Error('Use this command in a server.');
@@ -73,8 +103,14 @@ async function run(i){
  throw Error('Command not implemented.');
 }
 client.on('interactionCreate',async i=>{
+ if(i.isButton()&&i.customId.startsWith('musik_help_')){
+  const page=Number(i.customId.slice('musik_help_'.length));
+  if(!Number.isInteger(page))return;
+  try{await i.update(helpPayload(page))}catch(e){console.error('Help navigation',e)}
+  return;
+ }
  if(!i.isChatInputCommand())return;
- try{await run(i)}catch(e){console.error(i.commandName,e);const msg=`❌ ${e.message||'Unexpected error'}`;try{if(i.replied||i.deferred)await i.followUp({content:msg,ephemeral:true});else await reply(i,msg)}catch{}}
+ try{await run(i)}catch(e){console.error(i.commandName,e);const msg=`❌ ${e.message||'Unexpected error'}`;try{if(i.replied||i.deferred)await i.followUp({embeds:[makeEmbed('Something went wrong',msg,'error')],flags:MessageFlags.Ephemeral});else await reply(i,msg)}catch{}}
 });
 client.once('ready',async()=>{
  console.log(`Logged in as ${client.user.tag}`);

@@ -24,3 +24,6 @@ One Render **web service** runs both the Discord bot and its dashboard on the sa
 - OAuth redirect URL must be HTTPS on a public domain and **exactly** match the portal setting.
 - 100 slash-command definitions are included in consolidated source; some are presets and optional commands may be placeholders. Lavalink playback has not been live-tested.
 - This is a combined deployment; you no longer need a separate website Render service.
+
+## Embed responses and `/help`
+All slash-command replies now use Musik-themed Discord embeds (including errors). `/help` opens an ephemeral, button-paginated command directory showing all 100 registered command names across 11 pages. Use **Previous** and **Next** to browse.
