@@ -1,0 +1,31 @@
+services:
+  - type: web
+    name: musik-bot-dashboard
+    runtime: node
+    plan: starter
+    buildCommand: npm install
+    startCommand: npm start
+    healthCheckPath: /health
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: DISCORD_TOKEN
+        sync: false
+      - key: DISCORD_CLIENT_ID
+        sync: false
+      - key: DISCORD_CLIENT_SECRET
+        sync: false
+      - key: PUBLIC_DOMAIN
+        sync: false
+      - key: DISCORD_OAUTH_CALLBACK_URL
+        sync: false
+      - key: SESSION_SECRET
+        generateValue: true
+      - key: LAVALINK_HOST
+        sync: false
+      - key: LAVALINK_PORT
+        value: '443'
+      - key: LAVALINK_PASSWORD
+        sync: false
+      - key: LAVALINK_SECURE
+        value: 'true'
